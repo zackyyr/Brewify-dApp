@@ -1,0 +1,25 @@
+# Environment variables and secrets
+# Do not commit these files to git!
+.env
+.env.*
+!/.env.example
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# General Node.js
+node_modules/
+
+# Truffle project (contracts/)
+contracts/build/
+contracts/.env
+contracts/test/.env
+
+# Next.js project (frontend/)
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
