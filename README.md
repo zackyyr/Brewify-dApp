@@ -265,11 +265,12 @@ npx truffle migrate --network sepolia
 
 > Simpan **alamat kontrak** hasil deploy untuk dipakai di frontend (`build/contracts/CoffeeBatchNFT.json`).
 
+---
 ```
 
 ---
 
-## 8) IPFS Metadata (contoh)
+## 9) IPFS Metadata (contoh)
 
 ```json
 {
@@ -287,7 +288,7 @@ Upload ke Pinata/Filebase → gunakan URI `ipfs://CID` saat mint.
 
 ---
 
-## 9) FAQ & Troubleshooting
+## 8) FAQ & Troubleshooting
 
 * **Error provider**: periksa `INFURA_API_KEY` dan koneksi internet.
 * **Insufficient funds**: pastikan akun Sepolia memiliki ETH faucet.
@@ -296,7 +297,7 @@ Upload ke Pinata/Filebase → gunakan URI `ipfs://CID` saat mint.
 
 ---
 
-## 10) Keamanan & Git
+## 9) Keamanan & Git
 
 ```gitignore
 node_modules/
@@ -310,7 +311,7 @@ Jangan unggah private key/API key ke repo publik. Gunakan **ENV**.
 
 ---
 
-## 11) Ringkas Perintah
+## 10) Ringkas Perintah
 
 ```bash
 # Kontrak (lokal)
@@ -328,6 +329,6 @@ npm run dev
 
 ---
 
-## 12) Catatan Simulasi / Tugas Kampus
+## 11) Catatan Simulasi / Tugas Kampus
 
 Proyek ini dapat dijalankan **sepenuhnya lokal** menggunakan Ganache tanpa biaya gas. Untuk uji publik, gunakan **Sepolia** melalui **Infura**.
