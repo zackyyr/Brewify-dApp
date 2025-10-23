@@ -112,39 +112,91 @@ npx truffle compile
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.21;
+
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract CoffeeBatchNFT is ERC721URIStorage, AccessControl {
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    enum Status { Unknown, Harvested, Processed, Packed, Shipped, Delivered }
-    mapping(uint256 => Status) public tokenStatus;
-    uint256 private _nextId = 1;
+/**
+ * @title CoffeeBatchNFT
+ * @dev Representasi NFT untuk setiap batch kopi.
+ */
+contract CoffeeBatchNFT is ERC721URIStorage, Ownable {
+    enum Status {
+        Unknown,
+        Harvested,
+        Processed,
+        Packed,
+        Shipped,
+        Delivered
+    }
 
-    event BatchMinted(address indexed to, uint256 indexed tokenId, string uri);
-    event StatusUpdated(uint256 indexed tokenId, Status newStatus);
+    struct BatchInfo {
+        Status status;
+        uint256 timestamp;
+    }
 
-    constructor() ERC721("Brewify Coffee Batch", "BREW") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
+    mapping(uint256 => BatchInfo) private _batchStatus;
+    uint256 private _tokenIdCounter;
+
+    event BatchMinted(uint256 indexed tokenId, address indexed to, string uri);
+    event StatusUpdated(uint256 indexed tokenId, Status newStatus, uint256 timestamp);
+
+    constructor() ERC721("CoffeeBatchNFT", "CBN") Ownable(msg.sender) {}
+
+    /**
+     * @dev Mint batch baru dan simpan metadata URI.
+     */
+    function mintBatch(address to, string memory uri) public onlyOwner {
+        _tokenIdCounter++;
+        uint256 newTokenId = _tokenIdCounter;
+        _mint(to, newTokenId);
+        _setTokenURI(newTokenId, uri);
+
+        _batchStatus[newTokenId] = BatchInfo(Status.Harvested, block.timestamp);
+
+        emit BatchMinted(newTokenId, to, uri);
     }
-    function mintBatch(address to, string memory uri) external onlyRole(MINTER_ROLE) {
-        uint256 tokenId = _nextId++;
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
-        tokenStatus[tokenId] = Status.Harvested;
-        emit BatchMinted(to, tokenId, uri);
+
+    /**
+     * @dev Update status batch kopi.
+     */
+    function updateStatus(uint256 tokenId, Status newStatus) public onlyOwner {
+        require(_existsToken(tokenId), "Batch not found");
+        _batchStatus[tokenId].status = newStatus;
+        _batchStatus[tokenId].timestamp = block.timestamp;
+
+        emit StatusUpdated(tokenId, newStatus, block.timestamp);
     }
-    function updateStatus(uint256 tokenId, Status newStatus) external onlyRole(MINTER_ROLE) {
-        require(_exists(tokenId), "Nonexistent token");
-        tokenStatus[tokenId] = newStatus;
-        emit StatusUpdated(tokenId, newStatus);
+
+    /**
+     * @dev Lihat status batch kopi.
+     */
+    function getStatus(uint256 tokenId) public view returns (Status, uint256) {
+        require(_existsToken(tokenId), "Batch not found");
+        BatchInfo memory info = _batchStatus[tokenId];
+        return (info.status, info.timestamp);
     }
-    function supportsInterface(bytes4 interfaceId)
-        public view override(ERC721URIStorage, AccessControl) returns (bool)
-    { return super.supportsInterface(interfaceId); }
+
+    /**
+     * @dev Cek eksistensi token (pengganti _exists di OZ v5).
+     */
+    function _existsToken(uint256 tokenId) internal view returns (bool) {
+        try this.ownerOf(tokenId) returns (address) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * @dev Total NFT yang sudah dicetak.
+     */
+    function totalSupply() public view returns (uint256) {
+        return _tokenIdCounter;
+    }
 }
+
 ```
 
 ### Migrasi `migrations/1_deploy_contracts.js`
@@ -160,27 +212,24 @@ module.exports = function (deployer) {
 
 ```js
 require('dotenv').config();
-const HDWalletProvider = require('@truffle/hdwallet-provider');
-const { PRIVATE_KEY_GANACHE, PRIVATE_KEY_SEPOLIA, INFURA_API_KEY } = process.env;
-
 module.exports = {
   networks: {
     development: {
-      host: "127.0.0.1",
-      port: 7545,
-      network_id: "*",
-    },
-    sepolia: {
-      provider: () => new HDWalletProvider([
-        PRIVATE_KEY_SEPOLIA
-      ], `https://sepolia.infura.io/v3/${INFURA_API_KEY}`),
-      network_id: 11155111,
-      confirmations: 2,
-      timeoutBlocks: 200,
-      skipDryRun: true,
+      host: "127.0.0.1",   // Localhost Ganache
+      port: 7545,          // Port Ganache CLI/GUI
+      network_id: "*",  // Chain ID Ganache
     },
   },
-  compilers: { solc: { version: "0.8.20" } },
+
+  mocha: {
+    // timeout: 100000
+  },
+
+  compilers: {
+    solc: {
+      version: "0.8.21",
+    },
+  },
 };
 ```
 
@@ -216,52 +265,11 @@ npx truffle migrate --network sepolia
 
 > Simpan **alamat kontrak** hasil deploy untuk dipakai di frontend (`build/contracts/CoffeeBatchNFT.json`).
 
----
-
-## 8) Frontend (Next.js) + Wallet + QR
-
-```bash
-cd brewify/frontend
-npm install
-npm run dev
-```
-
-Frontend berjalan di `http://localhost:3000`.
-
-### Dependencies Frontend
-
-* **`wagmi`**: Hooks React untuk interaksi wallet & kontrak.
-* **`viem`**: Client EVM modern.
-* **`ethers`**: Library Ethereum populer.
-* **`@rainbow-me/rainbowkit`**: UI koneksi wallet siap pakai.
-* **`qrcode.react`**: Komponen React untuk render QR langsung di UI.
-
-### Contoh Halaman Verifikasi QR
-
-```tsx
-'use client';
-import { useParams } from 'next/navigation';
-import { QRCode } from 'qrcode.react';
-
-export default function VerifyPage() {
-  const { tokenId } = useParams<{ tokenId: string }>();
-  const verifyUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/verify/${tokenId}`
-    : `https://example.com/verify/${tokenId}`;
-
-  return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Batch #{String(tokenId)}</h1>
-      <p>Scan QR untuk melihat detail on-chain batch kopi.</p>
-      <QRCode value={verifyUrl} size={192} includeMargin />
-    </div>
-  );
-}
 ```
 
 ---
 
-## 9) IPFS Metadata (contoh)
+## 8) IPFS Metadata (contoh)
 
 ```json
 {
@@ -279,7 +287,7 @@ Upload ke Pinata/Filebase → gunakan URI `ipfs://CID` saat mint.
 
 ---
 
-## 10) FAQ & Troubleshooting
+## 9) FAQ & Troubleshooting
 
 * **Error provider**: periksa `INFURA_API_KEY` dan koneksi internet.
 * **Insufficient funds**: pastikan akun Sepolia memiliki ETH faucet.
@@ -288,7 +296,7 @@ Upload ke Pinata/Filebase → gunakan URI `ipfs://CID` saat mint.
 
 ---
 
-## 11) Keamanan & Git
+## 10) Keamanan & Git
 
 ```gitignore
 node_modules/
@@ -302,7 +310,7 @@ Jangan unggah private key/API key ke repo publik. Gunakan **ENV**.
 
 ---
 
-## 12) Ringkas Perintah
+## 11) Ringkas Perintah
 
 ```bash
 # Kontrak (lokal)
@@ -320,6 +328,6 @@ npm run dev
 
 ---
 
-## 13) Catatan Simulasi / Tugas Kampus
+## 12) Catatan Simulasi / Tugas Kampus
 
 Proyek ini dapat dijalankan **sepenuhnya lokal** menggunakan Ganache tanpa biaya gas. Untuk uji publik, gunakan **Sepolia** melalui **Infura**.
