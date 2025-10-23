@@ -1,4 +1,4 @@
-# Brewify – Blockchain Coffee Traceability (Truffle Edition)
+# Brewify – Blockchain Coffee Traceability
 
 End‑to‑end demo dApp untuk menelusuri batch kopi (NFT) dari panen hingga pengiriman. README ini memandu setup **Truffle + Ganache + Sepolia + Infura** serta integrasi **Next.js** frontend + **QR Code**.
 
