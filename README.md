@@ -15,13 +15,13 @@ End‑to‑end demo dApp untuk menelusuri batch kopi (NFT) dari panen hingga pen
 
 ---
 
-## 1) Kenapa Truffle (alih dari Hardhat)?
+## 1) Framework: Truffle
 
 * **Migrasi terstruktur** (migrations) cocok untuk tugas kampus & pembelajaran.
 * Integrasi **Ganache** sangat mulus.
 * Lebih sedikit konfigurasi untuk skenario dasar.
 
-> Jika nanti butuh forking, coverage, atau tooling lanjutan, Hardhat bisa dipertimbangkan. Untuk MVP, Truffle cukup.
+> Untuk pengujian lanjutan, Hardhat dapat dipertimbangkan di masa depan, namun implementasi proyek ini **berfokus penuh pada Truffle**.
 
 ---
 
@@ -61,18 +61,19 @@ brewify/
 
 Clone repositori ini dan install dependensi untuk kedua bagian proyek.
 
-1.  **Install dependensi untuk Kontrak (Truffle):**
+1. **Install dependensi untuk Kontrak (Truffle):**
 
-    ```bash
-    cd brewify/contracts
-    npm install
-    ```
+   ```bash
+   cd brewify/contracts
+   npm install
+   ```
 
-2.  **Install dependensi untuk Frontend (Next.js):**
-    ```bash
-    cd ../frontend
-    npm install
-    ```
+2. **Install dependensi untuk Frontend (Next.js):**
+
+   ```bash
+   cd ../frontend
+   npm install
+   ```
 
 ## 4) Setup Infura API Key
 
@@ -92,23 +93,20 @@ Nanti dipakai di `truffle-config.js`.
 
 ## 5) Setup Kontrak (Truffle)
 
-### Instalasi (di folder `brewify/contracts`)
-
-Pertama, inisialisasi proyek Truffle jika belum ada:
+### Inisialisasi & Kompilasi
 
 ```bash
 cd brewify/contracts
-npx truffle init # Hanya jika memulai dari awal
+npx truffle init # hanya jika memulai dari awal
+npx truffle compile
 ```
 
-Kemudian, install dependensi yang dibutuhkan:
+### Dependencies (Kontrak)
 
-### Penjelasan Dependencies (Kontrak)
-
-* **`truffle`**: Framework untuk compile (`truffle compile`), migrate (`truffle migrate`) dan test (`truffle test`).
-* **`dotenv`**: Memuat variabel rahasia dari file `.env` (private key, API key) agar tidak hard‑code di repo.
-* **`@truffle/hdwallet-provider`**: Provider yang menandatangani transaksi memakai **private key** lalu menghubungkan ke RPC (Ganache/Infura).
-* **`@openzeppelin/contracts`**: Kumpulan kontrak **audited** (ERC‑721, AccessControl, dll) sehingga kita tidak menulis ulang standar.
+* **`truffle`**: Framework untuk compile, migrate, dan test.
+* **`dotenv`**: Memuat variabel rahasia dari file `.env`.
+* **`@truffle/hdwallet-provider`**: Provider yang menandatangani transaksi memakai **private key**.
+* **`@openzeppelin/contracts`**: Kumpulan kontrak **audited** (ERC‑721, AccessControl, dll).
 
 ### Kontrak Utama `contracts/CoffeeBatchNFT.sol`
 
@@ -189,13 +187,8 @@ module.exports = {
 ### .env contoh
 
 ```env
-# dari Ganache GUI: klik akun → reveal private key
 PRIVATE_KEY_GANACHE=0x<64 hex>
-
-# dari MetaMask: akun Sepolia (lihat bagian di bawah)
 PRIVATE_KEY_SEPOLIA=0x<64 hex>
-
-# dari Infura dashboard → Project ID
 INFURA_API_KEY=123abc456def789...
 ```
 
@@ -215,35 +208,35 @@ npx truffle migrate --network development
 
 ---
 
-## 7) Deploy ke Sepolia
+## 7) Deploy ke Sepolia (Testnet)
 
 ```bash
 npx truffle migrate --network sepolia
 ```
 
-> Simpan **alamat kontrak** hasil deploy → dipakai di frontend (ABI dari `build/contracts/CoffeeBatchNFT.json`).
+> Simpan **alamat kontrak** hasil deploy untuk dipakai di frontend (`build/contracts/CoffeeBatchNFT.json`).
 
 ---
 
 ## 8) Frontend (Next.js) + Wallet + QR
 
-Buat project:
-
 ```bash
 cd brewify/frontend
-# npm install (sudah dilakukan di atas)
+npm install
+npm run dev
 ```
 
-### Penjelasan Dependencies (Frontend)
+Frontend berjalan di `http://localhost:3000`.
 
-* **`wagmi`**: Hooks React untuk interaksi wallet & kontrak (signer, read/write contract).
-* **`viem`**: Client EVM modern (read/write, encode ABI) → dipakai oleh wagmi.
-* **`ethers`**: Library Ethereum populer (provider, signer). RainbowKit & beberapa util memerlukan ini.
-* **`@rainbow-me/rainbowkit`**: UI koneksi wallet yang siap pakai.
-* **`qrcode atau qr`**: Generator QR **di Node/Browser** → menghasilkan data URL PNG/SVG.
-* **`qrcode.react`**: Komponen **React** untuk render QR langsung di UI verifikasi.
+### Dependencies Frontend
 
-### Contoh Halaman Verifikasi QR (`/app/verify/[tokenId]/page.tsx`)
+* **`wagmi`**: Hooks React untuk interaksi wallet & kontrak.
+* **`viem`**: Client EVM modern.
+* **`ethers`**: Library Ethereum populer.
+* **`@rainbow-me/rainbowkit`**: UI koneksi wallet siap pakai.
+* **`qrcode.react`**: Komponen React untuk render QR langsung di UI.
+
+### Contoh Halaman Verifikasi QR
 
 ```tsx
 'use client';
@@ -259,47 +252,16 @@ export default function VerifyPage() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-bold">Batch #{String(tokenId)}</h1>
-      <p>Scan QR untuk melihat detail on‑chain batch kopi.</p>
+      <p>Scan QR untuk melihat detail on-chain batch kopi.</p>
       <QRCode value={verifyUrl} size={192} includeMargin />
-      {/* TODO: fetch metadata & status dari kontrak berdasarkan tokenId */}
     </div>
   );
 }
 ```
 
-### Generate QR di Server/Script (opsional)
-
-```ts
-// scripts/make-qr.ts (Node)
-import { writeFileSync } from 'fs';
-import QRCode from 'qrcode';
-
-async function main() {
-  const url = 'https://your-domain.com/verify/1';
-  const dataUrl = await QRCode.toDataURL(url, { margin: 2, width: 512 });
-  const base64 = dataUrl.split(',')[1];
-  writeFileSync('qr-verify-1.png', Buffer.from(base64, 'base64'));
-}
-main();
-```
-
 ---
 
-## 9) Mengambil **Private Key Sepolia** (MetaMask)
-
-1. Di MetaMask, pilih **akun** yang akan dipakai di **jaringan Sepolia**.
-2. Klik **⋮** → **Account details** → **Export Private Key**.
-3. Masukkan password → **copy** private key (64 hex) → simpan sebagai `0x<key>` di `.env` → `PRIVATE_KEY_SEPOLIA`.
-
-> **Catatan:** Jangan pernah commit `.env` ke git. Lihat bagian keamanan.
-
-### Private Key Ganache
-
-* Buka **Ganache GUI** → pilih project → klik salah satu akun → **Reveal Private Key** → salin → `PRIVATE_KEY_GANACHE`.
-
----
-
-## 10) IPFS Metadata (contoh)
+## 9) IPFS Metadata (contoh)
 
 ```json
 {
@@ -317,19 +279,16 @@ Upload ke Pinata/Filebase → gunakan URI `ipfs://CID` saat mint.
 
 ---
 
-## 11) FAQ & Troubleshooting
+## 10) FAQ & Troubleshooting
 
-* **Error Hardhat HH8 / "private key too short"**: pastikan format `0x` + **64** karakter hex (32 byte). Untuk Truffle, error mirip akan muncul dari HDWalletProvider jika key salah.
-* **Provider error / 401**: cek `INFURA_API_KEY` benar & Internet OK.
+* **Error provider**: periksa `INFURA_API_KEY` dan koneksi internet.
 * **Insufficient funds**: pastikan akun Sepolia memiliki ETH faucet.
-* **Nonce mismatch / Ganache aneh**: restart Ganache dan ulangi migrasi.
-* **ABI mismatch**: re‑compile & re‑migrate; pastikan frontend memakai ABI terbaru dari `build/contracts`.
+* **Nonce mismatch / Ganache error**: restart Ganache dan ulangi migrasi.
+* **ABI mismatch**: re-compile & re-migrate; pastikan frontend memakai ABI terbaru.
 
 ---
 
-## 12) Keamanan & Git
-
-Pastikan file `.gitignore` ada di root folder `brewify/` dan berisi:
+## 11) Keamanan & Git
 
 ```gitignore
 node_modules/
@@ -343,7 +302,7 @@ Jangan unggah private key/API key ke repo publik. Gunakan **ENV**.
 
 ---
 
-## 13) Ringkas Perintah
+## 12) Ringkas Perintah
 
 ```bash
 # Kontrak (lokal)
@@ -361,8 +320,6 @@ npm run dev
 
 ---
 
-## 14) Catatan Simulasi / Tugas Kampus
+## 13) Catatan Simulasi / Tugas Kampus
 
-Proyek ini dapat berjalan **sepenuhnya lokal** (Ganache) tanpa biaya gas. Untuk uji publik & demonstrasi, gunakan **Sepolia** via **Infura**.
-
-Selamat membangun Brewify ☕ dengan Truffle + Infura + Ganache + QR!
+Proyek ini dapat dijalankan **sepenuhnya lokal** menggunakan Ganache tanpa biaya gas. Untuk uji publik, gunakan **Sepolia** melalui **Infura**.
